@@ -1,0 +1,75 @@
+name: api-autenticacao
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: "root-coti"
+      MYSQL_DATABASE: "bd-autenticacao"
+      MYSQL_USER: "coti"
+      MYSQL_PASSWORD: "coti"
+
+    ports:
+      - "3307:3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    networks:
+      - autenticacao-network
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          MYSQL_PWD="$$MYSQL_PASSWORD"
+          mysql --host=127.0.0.1 --user="$$MYSQL_USER"
+          --database="$$MYSQL_DATABASE" --execute="SELECT 1" --silent
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  phpmyadmin:
+    image: phpmyadmin:5.2-apache
+    restart: unless-stopped
+
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: "3306"
+      PMA_USER: "coti"
+      PMA_PASSWORD: "coti"
+
+    ports:
+      - "5053:80"
+
+    volumes:
+      - phpmyadmin_sessions:/sessions
+
+    networks:
+      - autenticacao-network
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD
+        - php
+        - -r
+        - "exit(@file_get_contents('http://127.0.0.1:80/') === false ? 1 : 0);"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  mysql_data:
+  phpmyadmin_sessions:
+
+networks:
+  autenticacao-network:
+    driver: bridge
